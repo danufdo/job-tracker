@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { addApplication, removeApplication, saveDetails, setStatus, signOut } from "@/app/actions";
+import { addApplication, removeApplication, updateApplication, setStatus, signOut } from "@/app/actions";
 import { STATUSES, type App, type Status } from "@/lib/types";
 import ImportSheet from "./ImportSheet";
 
@@ -16,6 +16,10 @@ function offerText(r: App) {
   if (r.offer_min != null && r.offer_max != null && r.offer_min !== r.offer_max) return `${c}${money(r.offer_min)}–${money(r.offer_max)}`;
   const one = r.offer_min ?? r.offer_max;
   return one != null ? `${c}${money(one)}` : null;
+}
+
+function Field({ label, className = "", children }: { label: string; className?: string; children: React.ReactNode }) {
+  return <label className={`grid gap-1 text-sm text-slate-700 ${className}`}><span>{label}</span>{children}</label>;
 }
 
 export default function Tracker({ initial, email }: { initial: App[]; email: string }) {
@@ -116,7 +120,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   <td className="p-3 font-medium">{r.company}</td>
                   <td className="p-3">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-accent underline">{r.role}</a> : r.role}</td>
                   <td className="p-3">
-                    <select aria-label={`Status for ${r.company}`} value={r.status} className={`rounded px-2 py-1 capitalize ${PILL[r.status]}`}
+                    <select aria-label={`Status for ${r.company}`} value={r.status} disabled={open === r.id} className={`rounded px-2 py-1 capitalize ${PILL[r.status]}`}
                       onChange={(e) => { const status = e.target.value as Status; start(() => withBusy("Updating status…", async () => { patch({ id: r.id, status }); await setStatus(r.id, status); })); }}>
                       {STATUSES.map((s) => <option key={s}>{s}</option>)}
                     </select>
@@ -129,7 +133,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   </td>
                   <td className="space-x-3 whitespace-nowrap p-3 text-right">
                     <button onClick={() => { setDerr(""); setOpen(open === r.id ? null : r.id); }} aria-expanded={open === r.id} className="text-accent underline">
-                      {open === r.id ? "Close" : r.notes ? "Details •" : "Details"}
+                      {open === r.id ? "Close" : r.notes ? "Edit •" : "Edit"}
                     </button>
                     <button onClick={() => confirm(`Delete ${r.company}?`) && start(() => withBusy("Deleting application…", () => removeApplication(r.id)))} className="text-rose-700 underline">Delete</button>
                   </td>
@@ -137,14 +141,25 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   {open === r.id && (
                     <tr className="border-b border-line bg-slate-50">
                       <td colSpan={7} className="p-4">
-                        <form action={(fd) => withBusy("Saving details…", async () => { const res = await saveDetails(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); })} className="grid gap-3 sm:grid-cols-4">
-                          <input name="offer_min" type="number" min="0" step="any" defaultValue={r.offer_min ?? ""} placeholder="Offer minimum" aria-label="Offer minimum" className={field} />
-                          <input name="offer_max" type="number" min="0" step="any" defaultValue={r.offer_max ?? ""} placeholder="Offer maximum" aria-label="Offer maximum" className={field} />
-                          <input name="offer_currency" defaultValue={r.offer_currency ?? ""} maxLength={8} placeholder="Currency (e.g. LKR)" aria-label="Currency" className={field} />
-                          <input name="offer_details" defaultValue={r.offer_details ?? ""} placeholder="Package: bonus, benefits, equity…" aria-label="Package details" className={field} />
-                          <textarea name="notes" defaultValue={r.notes ?? ""} rows={4} placeholder="Notes" aria-label="Notes" className={`${field} sm:col-span-4`} />
-                          <div className="flex flex-wrap items-center gap-3 sm:col-span-4">
-                            <button className="rounded bg-accent px-3 py-2 font-medium text-white">Save details</button>
+                        <form action={(fd) => withBusy("Saving changes…", async () => { const res = await updateApplication(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); })} className="grid gap-4 sm:grid-cols-6">
+                          <Field label="Company" className="sm:col-span-2"><input name="company" required maxLength={200} defaultValue={r.company} className={field} /></Field>
+                          <Field label="Role" className="sm:col-span-2"><input name="role" required maxLength={200} defaultValue={r.role} className={field} /></Field>
+                          <Field label="Status" className="sm:col-span-2">
+                            <select name="status" defaultValue={r.status} className={`${field} capitalize`}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
+                          </Field>
+                          <Field label="Location" className="sm:col-span-2"><input name="location" maxLength={200} defaultValue={r.location ?? ""} className={field} /></Field>
+                          <Field label="Applied date" className="sm:col-span-2"><input name="applied_on" type="date" defaultValue={r.applied_on ?? ""} className={field} /></Field>
+                          <Field label="Posting URL" className="sm:col-span-2"><input name="url" type="url" defaultValue={r.url ?? ""} placeholder="https://…" className={field} /></Field>
+                          <fieldset className="grid gap-3 sm:col-span-6 sm:grid-cols-6">
+                            <legend className="mb-2 text-sm font-medium">Offer</legend>
+                            <Field label="Minimum" className="sm:col-span-2"><input name="offer_min" type="number" min="0" step="any" defaultValue={r.offer_min ?? ""} className={field} /></Field>
+                            <Field label="Maximum" className="sm:col-span-2"><input name="offer_max" type="number" min="0" step="any" defaultValue={r.offer_max ?? ""} className={field} /></Field>
+                            <Field label="Currency" className="sm:col-span-2"><input name="offer_currency" maxLength={8} defaultValue={r.offer_currency ?? ""} placeholder="e.g. LKR" className={field} /></Field>
+                            <Field label="Package details" className="sm:col-span-6"><input name="offer_details" defaultValue={r.offer_details ?? ""} placeholder="Bonus, benefits, equity…" className={field} /></Field>
+                          </fieldset>
+                          <Field label="Notes" className="sm:col-span-6"><textarea name="notes" rows={4} defaultValue={r.notes ?? ""} className={field} /></Field>
+                          <div className="flex flex-wrap items-center gap-3 sm:col-span-6">
+                            <button className="rounded bg-accent px-3 py-2 font-medium text-white">Save changes</button>
                             <button type="button" onClick={() => setOpen(null)} className="underline">Cancel</button>
                             {derr && <p role="alert" className="text-sm text-rose-700">{derr}</p>}
                           </div>

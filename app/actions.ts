@@ -29,12 +29,18 @@ const num = (v: unknown) => {
   return Number.isFinite(n) && n >= 0 ? n : NaN;
 };
 
-export async function saveDetails(id: string, fd: FormData): Promise<{ error?: string }> {
+export async function updateApplication(id: string, fd: FormData): Promise<{ error?: string }> {
+  const company = clean(fd.get("company")), role = clean(fd.get("role"));
+  if (!company || !role) return { error: "Company and role are required." };
+  const url = clean(fd.get("url"));
+  if (url && !validUrl(url)) return { error: "The posting URL must start with http:// or https://." };
   const min = num(fd.get("offer_min")), max = num(fd.get("offer_max"));
   if (Number.isNaN(min) || Number.isNaN(max)) return { error: "Offer amounts must be positive numbers." };
   if (min !== null && max !== null && min > max) return { error: "The offer minimum can’t be higher than the maximum." };
   const supabase = await createClient();
   const { error } = await supabase.from("applications").update({
+    company: company.slice(0, 200), role: role.slice(0, 200), status: validStatus(fd.get("status")),
+    location: clean(fd.get("location"))?.slice(0, 200) ?? null, url, applied_on: validDate(fd.get("applied_on")),
     offer_min: min, offer_max: max,
     offer_currency: clean(fd.get("offer_currency"))?.toUpperCase().slice(0, 8) ?? null,
     offer_details: clean(fd.get("offer_details"))?.slice(0, 1000) ?? null,
