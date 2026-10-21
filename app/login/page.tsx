@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,26 +13,30 @@ export default function Login() {
   const [show, setShow] = useState(false);
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
+  const [sent, setSent] = useState(false);
+  const locked = useRef(false); // blocks a second submit even before React re-renders
   const signUp = mode === "up";
   const mismatch = signUp && confirm.length > 0 && confirm !== password;
 
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (locked.current) return;
     const email = String(new FormData(e.currentTarget).get("email")).trim();
     if (signUp && password !== confirm) return setMsg("The passwords don’t match. Retype the same password in both fields.");
-    setBusy(true); setMsg("");
+    locked.current = true; setBusy(true); setMsg("");
     const supabase = createClient();
     const { data, error } = signUp
       ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: `${location.origin}/login` } })
       : await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (error) return setMsg(error.message);
-    if (!data.session) return setMsg("Check your email to confirm your account, then sign in.");
+    // Only an error unlocks the button; on success it stays disabled while the page navigates.
+    if (error) { locked.current = false; setBusy(false); return setMsg(error.message); }
+    if (!data.session) { setSent(true); return setMsg("Check your email to confirm your account, then sign in."); }
     router.push("/"); router.refresh();
   }
 
   function switchMode() {
     setMode(signUp ? "in" : "up"); setConfirm(""); setMsg(""); setShow(false);
+    locked.current = false; setBusy(false); setSent(false);
   }
 
   return (
@@ -53,7 +57,7 @@ export default function Login() {
           <input type="checkbox" checked={show} onChange={(e) => setShow(e.target.checked)} /> Show password
         </label>
         <button disabled={busy || mismatch} className="rounded bg-accent px-3 py-2 font-medium text-white disabled:opacity-60">
-          {busy ? "Please wait…" : signUp ? "Create account" : "Sign in"}
+          {sent ? "Check your email" : busy ? "Please wait…" : signUp ? "Create account" : "Sign in"}
         </button>
         {msg && <p role="alert" className="text-sm text-rose-700">{msg}</p>}
       </form>
