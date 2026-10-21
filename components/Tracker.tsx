@@ -9,6 +9,7 @@ const PILL: Record<Status, string> = {
   offer: "bg-emerald-100 text-emerald-900", rejected: "bg-rose-100 text-rose-900",
 };
 const field = "rounded border border-line bg-white px-3 py-2";
+const SIZES = [10, 25, 50, 100];
 
 export default function Tracker({ initial, email }: { initial: App[]; email: string }) {
   const [rows, patch] = useOptimistic(initial, (s, a: { id: string; status: Status }) =>
@@ -16,6 +17,8 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [, start] = useTransition();
   const [q, setQ] = useState("");
   const [f, setF] = useState<Status | "all">("all");
+  const [page, setPage] = useState(0);
+  const [size, setSize] = useState(25);
   const form = useRef<HTMLFormElement>(null);
   const [err, setErr] = useState("");
 
@@ -32,6 +35,10 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
       (!t || `${r.company} ${r.role} ${r.location ?? ""}`.toLowerCase().includes(t)));
   }, [rows, q, f]);
 
+  const pages = Math.max(1, Math.ceil(shown.length / size));
+  const cur = Math.min(page, pages - 1);
+  const visible = shown.slice(cur * size, cur * size + size);
+
   return (
     <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex items-end justify-between gap-4">
@@ -44,7 +51,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
 
       <div role="tablist" className="mb-4 grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-6">
         {(["all", ...STATUSES] as const).map((s) => (
-          <button key={s} role="tab" aria-selected={f === s} onClick={() => setF(s)}
+          <button key={s} role="tab" aria-selected={f === s} onClick={() => { setF(s); setPage(0); }}
             className={`px-3 py-3 text-left ${f === s ? "bg-ink text-white" : "bg-white hover:bg-slate-50"}`}>
             <span className="block font-display text-2xl font-bold">{counts[s]}</span>
             <span className="text-sm capitalize">{s}</span>
@@ -53,7 +60,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
       </div>
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search company, role, location" className={`${field} min-w-64 flex-1`} />
+        <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search company, role, location" className={`${field} min-w-64 flex-1`} />
         <ImportSheet />
       </div>
 
@@ -83,7 +90,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
               <tr><th className="p-3">Company</th><th className="p-3">Role</th><th className="p-3">Status</th><th className="p-3">Applied</th><th className="p-3">Location</th><th className="p-3" /></tr>
             </thead>
             <tbody>
-              {shown.map((r) => (
+              {visible.map((r) => (
                 <tr key={r.id} className="border-b border-line last:border-0">
                   <td className="p-3 font-medium">{r.company}</td>
                   <td className="p-3">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-accent underline">{r.role}</a> : r.role}</td>
@@ -103,6 +110,21 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
             </tbody>
           </table>
         </div>
+      )}
+      {shown.length > 0 && (
+        <nav aria-label="Pagination" className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <span className="tabular-nums text-slate-600">{cur * size + 1}–{Math.min((cur + 1) * size, shown.length)} of {shown.length}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <label className="flex items-center gap-2 text-slate-600">Rows per page
+              <select value={size} onChange={(e) => { setSize(Number(e.target.value)); setPage(0); }} className="rounded border border-line bg-white px-2 py-1">
+                {SIZES.map((n) => <option key={n}>{n}</option>)}
+              </select>
+            </label>
+            <button onClick={() => setPage(cur - 1)} disabled={cur === 0} className="rounded border border-line bg-white px-3 py-1 disabled:opacity-50">Previous</button>
+            <span className="tabular-nums">Page {cur + 1} of {pages}</span>
+            <button onClick={() => setPage(cur + 1)} disabled={cur >= pages - 1} className="rounded border border-line bg-white px-3 py-1 disabled:opacity-50">Next</button>
+          </div>
+        </nav>
       )}
     </main>
   );
