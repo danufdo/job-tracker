@@ -70,7 +70,7 @@ async function readSheets(file: File): Promise<unknown[][][]> {
   return Promise.all(names.map((sheet) => readXlsx(file, { sheet })));
 }
 
-export default function ImportSheet() {
+export default function ImportSheet({ run }: { run: (label: string, fn: () => Promise<void>) => Promise<void> }) {
   const input = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<NewApp[]>([]);
   const [msg, setMsg] = useState("");
@@ -80,6 +80,7 @@ export default function ImportSheet() {
     if (input.current) input.current.value = ""; // lets the same file be chosen again
     if (!file) return;
     setMsg(""); setRows([]);
+    await run("Reading file…", async () => {
     try {
       const found = (await readSheets(file)).map(parseSheet).filter((s): s is NewApp[] => s !== null);
       if (!found.length) return setMsg("Couldn’t find a header row with Company and Role columns in the first 10 rows of any sheet.");
@@ -87,14 +88,15 @@ export default function ImportSheet() {
       setRows(all);
       if (!all.length) setMsg("The header was found, but no rows have both a company and a role.");
     } catch { setMsg("Couldn’t read that file. Use a .csv or .xlsx exported from Google Sheets."); }
+    });
   }
 
   function confirmImport() {
-    start(async () => {
+    start(() => run("Importing applications…", async () => {
       const r = await importApplications(rows);
       setMsg(r.error ? `Import stopped: ${r.error}` : `Imported ${r.added}. Skipped ${r.skipped} duplicates.`);
       setRows([]);
-    });
+    }));
   }
 
   return (

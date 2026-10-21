@@ -30,6 +30,14 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [err, setErr] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [derr, setDerr] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [fail, setFail] = useState("");
+
+  // Shows the loading screen (and locks the page) while a save, edit, delete or import runs.
+  async function withBusy(label: string, fn: () => Promise<void>) {
+    setFail(""); setBusy(label);
+    try { await fn(); } catch { setFail("Something went wrong. Please try again."); } finally { setBusy(null); }
+  }
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: rows.length };
@@ -49,14 +57,17 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const visible = shown.slice(cur * size, cur * size + size);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <>
+    <main inert={busy !== null} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex items-end justify-between gap-4">
         <h1 className="font-display text-3xl font-bold tracking-tight">Job Tracker</h1>
-        <form action={signOut} className="flex items-center gap-3 text-sm text-slate-600">
+        <form action={() => { setBusy("Signing out…"); return signOut(); }} className="flex items-center gap-3 text-sm text-slate-600">
           <span className="hidden sm:inline">{email}</span>
           <button className="underline">Sign out</button>
         </form>
       </header>
+
+      {fail && <p role="alert" className="mb-4 rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{fail}</p>}
 
       <div role="tablist" className="mb-4 grid grid-cols-3 gap-px overflow-hidden rounded border border-line bg-line sm:grid-cols-6">
         {(["all", ...STATUSES] as const).map((s) => (
@@ -70,12 +81,12 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
 
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search company, role, location" className={`${field} min-w-64 flex-1`} />
-        <ImportSheet />
+        <ImportSheet run={withBusy} />
       </div>
 
       <details className="mb-4 rounded border border-line bg-white p-4">
         <summary className="cursor-pointer font-medium">Add an application</summary>
-        <form ref={form} action={async (fd) => { const r = await addApplication(fd); setErr(r.error ?? ""); if (!r.error) form.current?.reset(); }} className="mt-4 grid gap-3 sm:grid-cols-3">
+        <form ref={form} action={(fd) => withBusy("Saving application…", async () => { const r = await addApplication(fd); setErr(r.error ?? ""); if (!r.error) form.current?.reset(); })} className="mt-4 grid gap-3 sm:grid-cols-3">
           <input name="company" required placeholder="Company" className={field} />
           <input name="role" required placeholder="Role" className={field} />
           <select name="status" defaultValue="applied" className={`${field} capitalize`}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
@@ -106,7 +117,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   <td className="p-3">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-accent underline">{r.role}</a> : r.role}</td>
                   <td className="p-3">
                     <select aria-label={`Status for ${r.company}`} value={r.status} className={`rounded px-2 py-1 capitalize ${PILL[r.status]}`}
-                      onChange={(e) => { const status = e.target.value as Status; start(async () => { patch({ id: r.id, status }); await setStatus(r.id, status); }); }}>
+                      onChange={(e) => { const status = e.target.value as Status; start(() => withBusy("Updating status…", async () => { patch({ id: r.id, status }); await setStatus(r.id, status); })); }}>
                       {STATUSES.map((s) => <option key={s}>{s}</option>)}
                     </select>
                   </td>
@@ -120,13 +131,13 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                     <button onClick={() => { setDerr(""); setOpen(open === r.id ? null : r.id); }} aria-expanded={open === r.id} className="text-accent underline">
                       {open === r.id ? "Close" : r.notes ? "Details •" : "Details"}
                     </button>
-                    <button onClick={() => confirm(`Delete ${r.company}?`) && start(() => removeApplication(r.id))} className="text-rose-700 underline">Delete</button>
+                    <button onClick={() => confirm(`Delete ${r.company}?`) && start(() => withBusy("Deleting application…", () => removeApplication(r.id)))} className="text-rose-700 underline">Delete</button>
                   </td>
                 </tr>
                   {open === r.id && (
                     <tr className="border-b border-line bg-slate-50">
                       <td colSpan={7} className="p-4">
-                        <form action={async (fd) => { const res = await saveDetails(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); }} className="grid gap-3 sm:grid-cols-4">
+                        <form action={(fd) => withBusy("Saving details…", async () => { const res = await saveDetails(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); })} className="grid gap-3 sm:grid-cols-4">
                           <input name="offer_min" type="number" min="0" step="any" defaultValue={r.offer_min ?? ""} placeholder="Offer minimum" aria-label="Offer minimum" className={field} />
                           <input name="offer_max" type="number" min="0" step="any" defaultValue={r.offer_max ?? ""} placeholder="Offer maximum" aria-label="Offer maximum" className={field} />
                           <input name="offer_currency" defaultValue={r.offer_currency ?? ""} maxLength={8} placeholder="Currency (e.g. LKR)" aria-label="Currency" className={field} />
@@ -164,5 +175,15 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
         </nav>
       )}
     </main>
+
+    {busy && (
+      <div role="status" aria-live="assertive" className="fixed inset-0 z-50 grid place-items-center bg-ink/50">
+        <div className="flex items-center gap-3 rounded bg-white px-5 py-4 shadow-lg">
+          <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-line border-t-accent" />
+          <span className="font-medium">{busy}</span>
+        </div>
+      </div>
+    )}
+    </>
   );
 }
