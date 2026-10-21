@@ -7,7 +7,7 @@ export default async function Home() {
   const [{ data: { user } }, { data }] = await Promise.all([
     supabase.auth.getUser(),
     supabase.from("applications")
-      .select("id,company,role,status,location,url,source,applied_on,notes")
+      .select("id,company,role,status,location,url,source,applied_on,notes,offer_min,offer_max,offer_currency,offer_details")
       .order("applied_on", { ascending: false, nullsFirst: false })
       .order("created_at", { ascending: false })
       .limit(1000),

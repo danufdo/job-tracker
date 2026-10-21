@@ -1,6 +1,6 @@
 "use client";
-import { useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { addApplication, removeApplication, setStatus, signOut } from "@/app/actions";
+import { Fragment, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { addApplication, removeApplication, saveDetails, setStatus, signOut } from "@/app/actions";
 import { STATUSES, type App, type Status } from "@/lib/types";
 import ImportSheet from "./ImportSheet";
 
@@ -10,6 +10,13 @@ const PILL: Record<Status, string> = {
 };
 const field = "rounded border border-line bg-white px-3 py-2";
 const SIZES = [10, 25, 50, 100];
+const money = (n: number) => n.toLocaleString("en-US");
+function offerText(r: App) {
+  const c = r.offer_currency ? `${r.offer_currency} ` : "";
+  if (r.offer_min != null && r.offer_max != null && r.offer_min !== r.offer_max) return `${c}${money(r.offer_min)}–${money(r.offer_max)}`;
+  const one = r.offer_min ?? r.offer_max;
+  return one != null ? `${c}${money(one)}` : null;
+}
 
 export default function Tracker({ initial, email }: { initial: App[]; email: string }) {
   const [rows, patch] = useOptimistic(initial, (s, a: { id: string; status: Status }) =>
@@ -21,6 +28,8 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [size, setSize] = useState(25);
   const form = useRef<HTMLFormElement>(null);
   const [err, setErr] = useState("");
+  const [open, setOpen] = useState<string | null>(null);
+  const [derr, setDerr] = useState("");
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: rows.length };
@@ -87,11 +96,12 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
         <div className="overflow-x-auto rounded border border-line bg-white">
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-line bg-slate-50 text-slate-600">
-              <tr><th className="p-3">Company</th><th className="p-3">Role</th><th className="p-3">Status</th><th className="p-3">Applied</th><th className="p-3">Location</th><th className="p-3" /></tr>
+              <tr><th className="p-3">Company</th><th className="p-3">Role</th><th className="p-3">Status</th><th className="p-3">Applied</th><th className="p-3">Location</th><th className="p-3">Offer</th><th className="p-3" /></tr>
             </thead>
             <tbody>
               {visible.map((r) => (
-                <tr key={r.id} className="border-b border-line last:border-0">
+                <Fragment key={r.id}>
+                  <tr className="border-b border-line last:border-0">
                   <td className="p-3 font-medium">{r.company}</td>
                   <td className="p-3">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-accent underline">{r.role}</a> : r.role}</td>
                   <td className="p-3">
@@ -102,15 +112,42 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   </td>
                   <td className="p-3 tabular-nums">{r.applied_on ?? "—"}</td>
                   <td className="p-3">{r.location ?? "—"}</td>
-                  <td className="p-3 text-right">
+                  <td className="p-3">
+                    {offerText(r) ?? "—"}
+                    {r.offer_details && <div title={r.offer_details} className="max-w-48 truncate text-xs text-slate-600">{r.offer_details}</div>}
+                  </td>
+                  <td className="space-x-3 whitespace-nowrap p-3 text-right">
+                    <button onClick={() => { setDerr(""); setOpen(open === r.id ? null : r.id); }} aria-expanded={open === r.id} className="text-accent underline">
+                      {open === r.id ? "Close" : r.notes ? "Details •" : "Details"}
+                    </button>
                     <button onClick={() => confirm(`Delete ${r.company}?`) && start(() => removeApplication(r.id))} className="text-rose-700 underline">Delete</button>
                   </td>
                 </tr>
-              ))}
-            </tbody>
+                  {open === r.id && (
+                    <tr className="border-b border-line bg-slate-50">
+                      <td colSpan={7} className="p-4">
+                        <form action={async (fd) => { const res = await saveDetails(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); }} className="grid gap-3 sm:grid-cols-4">
+                          <input name="offer_min" type="number" min="0" step="any" defaultValue={r.offer_min ?? ""} placeholder="Offer minimum" aria-label="Offer minimum" className={field} />
+                          <input name="offer_max" type="number" min="0" step="any" defaultValue={r.offer_max ?? ""} placeholder="Offer maximum" aria-label="Offer maximum" className={field} />
+                          <input name="offer_currency" defaultValue={r.offer_currency ?? ""} maxLength={8} placeholder="Currency (e.g. LKR)" aria-label="Currency" className={field} />
+                          <input name="offer_details" defaultValue={r.offer_details ?? ""} placeholder="Package: bonus, benefits, equity…" aria-label="Package details" className={field} />
+                          <textarea name="notes" defaultValue={r.notes ?? ""} rows={4} placeholder="Notes" aria-label="Notes" className={`${field} sm:col-span-4`} />
+                          <div className="flex flex-wrap items-center gap-3 sm:col-span-4">
+                            <button className="rounded bg-accent px-3 py-2 font-medium text-white">Save details</button>
+                            <button type="button" onClick={() => setOpen(null)} className="underline">Cancel</button>
+                            {derr && <p role="alert" className="text-sm text-rose-700">{derr}</p>}
+                          </div>
+                        </form>
+                      </td>
+                    </tr>
+                  )}
+                  </Fragment>
+                ))}
+              </tbody>
           </table>
         </div>
       )}
+
       {shown.length > 0 && (
         <nav aria-label="Pagination" className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
           <span className="tabular-nums text-slate-600">{cur * size + 1}–{Math.min((cur + 1) * size, shown.length)} of {shown.length}</span>
