@@ -22,6 +22,29 @@ export async function addApplication(fd: FormData): Promise<{ error?: string }> 
   return {};
 }
 
+const num = (v: unknown) => {
+  const s = String(v ?? "").trim();
+  if (!s) return null;
+  const n = Number(s);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+};
+
+export async function saveDetails(id: string, fd: FormData): Promise<{ error?: string }> {
+  const min = num(fd.get("offer_min")), max = num(fd.get("offer_max"));
+  if (Number.isNaN(min) || Number.isNaN(max)) return { error: "Offer amounts must be positive numbers." };
+  if (min !== null && max !== null && min > max) return { error: "The offer minimum can’t be higher than the maximum." };
+  const supabase = await createClient();
+  const { error } = await supabase.from("applications").update({
+    offer_min: min, offer_max: max,
+    offer_currency: clean(fd.get("offer_currency"))?.toUpperCase().slice(0, 8) ?? null,
+    offer_details: clean(fd.get("offer_details"))?.slice(0, 1000) ?? null,
+    notes: clean(fd.get("notes"))?.slice(0, 5000) ?? null,
+  }).eq("id", id);
+  if (error) return { error: error.message };
+  revalidatePath("/");
+  return {};
+}
+
 export async function setStatus(id: string, status: Status) {
   const supabase = await createClient();
   await supabase.from("applications").update({ status: validStatus(status) }).eq("id", id);

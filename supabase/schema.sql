@@ -7,6 +7,8 @@ create table applications (
   role text not null,
   status app_status not null default 'applied',
   location text, url text, source text, applied_on date, notes text,
+  offer_min numeric check (offer_min >= 0), offer_max numeric check (offer_max >= 0),
+  offer_currency text, offer_details text,
   created_at timestamptz not null default now()
 );
 create index on applications (user_id, status);
