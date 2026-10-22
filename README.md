@@ -4,6 +4,7 @@ Next.js (App Router, TypeScript, Tailwind) + Supabase (Postgres, Auth, RLS). Fre
 
 ## Setup
 1. Create a free project at supabase.com. In the SQL editor, run `supabase/schema.sql`.
+   (Existing project? Run `supabase/add-offer-fields.sql` and `supabase/add-delete-account.sql` once instead.)
 2. In Authentication → Providers → Email, turn off "Confirm email" while testing.
 3. `cp .env.example .env.local` and fill in the project URL and anon key (Project Settings → API).
 4. `npm install && npm run dev`, then open http://localhost:3000.

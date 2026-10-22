@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
@@ -14,6 +14,10 @@ export default function Login() {
   const [msg, setMsg] = useState("");
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+  const [notice, setNotice] = useState("");
+  useEffect(() => {
+    if (new URLSearchParams(location.search).get("deleted")) setNotice("Your account and all its data have been permanently deleted.");
+  }, []);
   const locked = useRef(false); // blocks a second submit even before React re-renders
   const signUp = mode === "up";
   const mismatch = signUp && confirm.length > 0 && confirm !== password;
@@ -43,6 +47,7 @@ export default function Login() {
     <main className="mx-auto grid min-h-screen max-w-md content-center gap-6 px-6">
       <h1 className="font-display text-4xl font-bold tracking-tight">Job Tracker</h1>
       <p className="text-slate-600">Every application, its stage, and what to do next.</p>
+      {notice && <p role="status" className="rounded border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-900">{notice}</p>}
       <form onSubmit={submit} className="grid gap-3">
         <input name="email" type="email" required placeholder="Email" autoComplete="email" className={input} />
         <input value={password} onChange={(e) => setPassword(e.target.value)} type={show ? "text" : "password"} required
