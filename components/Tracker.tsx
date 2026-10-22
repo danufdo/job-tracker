@@ -10,6 +10,15 @@ const PILL: Record<Status, string> = {
 };
 const field = "rounded border border-line bg-white px-3 py-2";
 const SIZES = [10, 25, 50, 100];
+const btn = "inline-flex items-center gap-2 rounded bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-700";
+
+function DownloadIcon() {
+  return (
+    <svg aria-hidden viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 3v12" /><path d="m7 11 5 5 5-5" /><path d="M5 21h14" />
+    </svg>
+  );
+}
 const money = (n: number) => n.toLocaleString("en-US");
 function offerText(r: App) {
   const c = r.offer_currency ? `${r.offer_currency} ` : "";
@@ -88,6 +97,8 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
       <div className="mb-4 flex flex-wrap items-center gap-3">
         <input value={q} onChange={(e) => { setQ(e.target.value); setPage(0); }} placeholder="Search company, role, location" className={`${field} min-w-64 flex-1`} />
         <ImportSheet run={withBusy} />
+        <a href="/api/export?format=xlsx" download className={btn}><DownloadIcon />Export Excel</a>
+        <a href="/api/export?format=csv" download className={btn}><DownloadIcon />Export CSV</a>
       </div>
 
       <details className="mb-4 rounded border border-line bg-white p-4">
@@ -195,6 +206,9 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
       <details className="mt-10 rounded border border-rose-200 bg-white p-4">
         <summary className="cursor-pointer font-medium text-rose-800">Delete account</summary>
         <p className="mt-3 text-sm text-slate-700">This permanently deletes your login and every application, offer and note you’ve saved. It can’t be undone.</p>
+        <p className="mt-2 text-sm text-slate-700">
+          Want a copy first? <a href="/api/export?format=xlsx" download className="text-accent underline">Download Excel</a> or <a href="/api/export?format=csv" download className="text-accent underline">CSV</a>.
+        </p>
         <form
           action={(fd) => withBusy("Deleting your account…", async () => {
             setDelErr("");

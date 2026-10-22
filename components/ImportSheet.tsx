@@ -14,6 +14,10 @@ const EXACT: Record<string, string[]> = {
   source: ["source", "platform", "board"],
   applied_on: ["applied", "appliedon", "applieddate", "dateapplied", "date"],
   notes: ["notes", "note", "comments"],
+  offer_min: ["offermin", "offerminimum", "minoffer"],
+  offer_max: ["offermax", "offermaximum", "maxoffer"],
+  offer_currency: ["currency", "offercurrency"],
+  offer_details: ["package", "packagedetails", "offerdetails"],
 };
 const LOOSE: Record<string, string[]> = { company: ["company"], role: ["role", "position", "title"], status: ["status"], applied_on: ["applied"] };
 
@@ -50,10 +54,19 @@ function parseSheet(rows: unknown[][]): NewApp[] | null {
     const idx = mapColumns(rows[h]);
     if (idx.company === undefined || idx.role === undefined) continue;
     const get = (r: unknown[], k: string) => (idx[k] === undefined ? "" : r[idx[k]]);
+    const txt = (r: unknown[], k: string) => String(get(r, k) ?? "").replace(/^'(?=[=+\-@])/, "").trim();
+    const numCell = (r: unknown[], k: string) => {
+      const v = get(r, k);
+      if (v === "" || v === null || v === undefined) return null;
+      const n = typeof v === "number" ? v : Number(String(v).replace(/,/g, ""));
+      return Number.isFinite(n) && n >= 0 ? n : null;
+    };
     return rows.slice(h + 1).map((r) => ({
-      company: String(get(r, "company") ?? "").trim(), role: String(get(r, "role") ?? "").trim(),
-      status: toStatus(get(r, "status")), location: String(get(r, "location") ?? ""), url: String(get(r, "url") ?? ""),
-      source: String(get(r, "source") ?? ""), applied_on: toDate(get(r, "applied_on")), notes: String(get(r, "notes") ?? ""),
+      company: txt(r, "company"), role: txt(r, "role"), status: toStatus(get(r, "status")),
+      location: txt(r, "location"), url: txt(r, "url"), source: txt(r, "source"),
+      applied_on: toDate(get(r, "applied_on")), notes: txt(r, "notes"),
+      offer_min: numCell(r, "offer_min"), offer_max: numCell(r, "offer_max"),
+      offer_currency: txt(r, "offer_currency"), offer_details: txt(r, "offer_details"),
     })).filter((r) => r.company && r.role);
   }
   return null;

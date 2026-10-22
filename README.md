@@ -14,6 +14,11 @@ Next.js (App Router, TypeScript, Tailwind) + Supabase (Postgres, Auth, RLS). Fre
 In Supabase → Authentication → URL Configuration, set Site URL to your Vercel domain and add
 `https://YOUR-DOMAIN/login` and `http://localhost:3000/login` to Redirect URLs, so confirmation emails return to the right place.
 
+## Exporting
+The Export Excel / Export CSV buttons download every application (not just the current page or filter) from
+`/api/export`. The columns use the same headers the importer reads, so an export can be re-imported
+(existing company + role pairs are skipped).
+
 ## Importing from Google Sheets
 In Sheets: File → Download → CSV or Microsoft Excel. Use a header row with Company and Role
 (optional: Status, Location, URL, Source, Applied, Notes). Duplicate company + role pairs are skipped.
