@@ -36,11 +36,9 @@ export async function generateResume(raw: unknown): Promise<{ error?: string; ge
   try {
     pdf = await renderResumePdf(res.data, photo);
   } catch (error) {
-    console.error("[resume-pdf] Rendering failed:", error);
-
-    return {
-      error: "PDF generation failed. Please try again or contact support.",
-    };
+    // Keep the detailed exception in server logs for diagnosis; don't expose internals to users.
+    console.error("Resume PDF rendering failed", error);
+    return { error: "We couldn’t generate your PDF. Please check unusually long URLs or text and try again. If the problem continues, try without your photo or contact support." };
   }
 
   // One file per user: each regeneration overwrites {user_id}/cv.pdf.
