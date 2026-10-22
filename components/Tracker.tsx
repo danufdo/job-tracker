@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { Fragment, startTransition, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
 import { addApplication, deleteAccount, removeApplication, updateApplication, setStatus, signOut } from "@/app/actions";
 import { STATUSES, type App, type Status } from "@/lib/types";
 import ImportSheet from "./ImportSheet";
@@ -10,6 +10,11 @@ const PILL: Record<Status, string> = {
 };
 const field = "rounded border border-line bg-white px-3 py-2";
 const SIZES = [10, 25, 50, 100];
+// Today in the user's own timezone (toISOString would give the UTC date, which can be yesterday/tomorrow).
+const localToday = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
 const btn = "inline-flex items-center gap-2 rounded bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-700";
 
 function DownloadIcon() {
@@ -41,6 +46,10 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [size, setSize] = useState(25);
   const form = useRef<HTMLFormElement>(null);
   const [err, setErr] = useState("");
+  const [appliedOn, setAppliedOn] = useState(""); // filled with today after mount, so server and browser HTML match
+  const [adding, setAdding] = useState(false);
+  const addLock = useRef(false); // blocks a second submit before React has re-rendered
+  useEffect(() => { setAppliedOn(localToday()); }, []);
   const [open, setOpen] = useState<string | null>(null);
   const [derr, setDerr] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -49,10 +58,15 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [delErr, setDelErr] = useState("");
 
   // Shows the loading screen (and locks the page) while a save, edit, delete or import runs.
-  async function withBusy(label: string, fn: () => Promise<void>) {
+  // Call this straight from an event handler (never inside a form `action` or a transition): React defers
+  // state updates made inside those until the server call finishes, so the overlay would appear too late.
+  async function withBusy(label: string, fn: (setLabel: (l: string) => void) => Promise<void>) {
     setFail(""); setBusy(label);
-    try { await fn(); } catch { setFail("Something went wrong. Please try again."); } finally { setBusy(null); }
+    try { await fn(setBusy); } catch { setFail("Something went wrong. Please try again."); } finally { startTransition(() => setBusy(null)); }
   }
+  // Runs fn as a transition and resolves when it ends, which useOptimistic needs to keep its optimistic value.
+  const inTransition = (fn: () => Promise<void>) =>
+    new Promise<void>((resolve, reject) => start(async () => { try { await fn(); resolve(); } catch (e) { reject(e); } }));
 
   const counts = useMemo(() => {
     const c: Record<string, number> = { all: rows.length };
@@ -76,7 +90,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
     <main inert={busy !== null} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex items-end justify-between gap-4">
         <h1 className="font-display text-3xl font-bold tracking-tight">Job Tracker</h1>
-        <form action={() => { setBusy("Signing out…"); return signOut(); }} className="flex items-center gap-3 text-sm text-slate-600">
+        <form onSubmit={(e) => { e.preventDefault(); setBusy("Signing out…"); void signOut(); }} className="flex items-center gap-3 text-sm text-slate-600">
           <span className="hidden sm:inline">{email}</span>
           <button className="underline">Sign out</button>
         </form>
@@ -103,15 +117,25 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
 
       <details className="mb-4 rounded border border-line bg-white p-4">
         <summary className="cursor-pointer font-medium">Add an application</summary>
-        <form ref={form} action={(fd) => withBusy("Saving application…", async () => { const r = await addApplication(fd); setErr(r.error ?? ""); if (!r.error) form.current?.reset(); })} className="mt-4 grid gap-3 sm:grid-cols-3">
+        <form ref={form} onSubmit={(e) => {
+            e.preventDefault();
+            if (addLock.current) return;
+            addLock.current = true; setAdding(true);
+            const fd = new FormData(e.currentTarget);
+            void withBusy("Saving application…", async () => {
+              const r = await addApplication(fd);
+              setErr(r.error ?? "");
+              if (!r.error) { form.current?.reset(); setAppliedOn(localToday()); }
+            }).finally(() => { addLock.current = false; setAdding(false); }); // unlocks when the save finishes
+          }} className="mt-4 grid gap-3 sm:grid-cols-3">
           <input name="company" required placeholder="Company" className={field} />
           <input name="role" required placeholder="Role" className={field} />
           <select name="status" defaultValue="applied" className={`${field} capitalize`}>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
           <input name="location" placeholder="Location" className={field} />
           <input name="url" type="url" placeholder="Posting URL" className={field} />
-          <input name="applied_on" type="date" className={field} />
+          <input name="applied_on" type="date" value={appliedOn} onChange={(e) => setAppliedOn(e.target.value)} aria-label="Applied date" title="Applied date" className={field} />
           <input name="notes" placeholder="Notes" className={`${field} sm:col-span-2`} />
-          <button className="rounded bg-accent px-3 py-2 font-medium text-white">Save application</button>
+          <button disabled={adding} className="rounded bg-accent px-3 py-2 font-medium text-white disabled:opacity-60">{adding ? "Please wait…" : "Save application"}</button>
           {err && <p role="alert" className="text-sm text-rose-700 sm:col-span-3">{err}</p>}
         </form>
       </details>
@@ -134,7 +158,7 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                   <td className="p-3">{r.url ? <a href={r.url} target="_blank" rel="noreferrer" className="text-accent underline">{r.role}</a> : r.role}</td>
                   <td className="p-3">
                     <select aria-label={`Status for ${r.company}`} value={r.status} disabled={open === r.id} className={`rounded px-2 py-1 capitalize ${PILL[r.status]}`}
-                      onChange={(e) => { const status = e.target.value as Status; start(() => withBusy("Updating status…", async () => { patch({ id: r.id, status }); await setStatus(r.id, status); })); }}>
+                      onChange={(e) => { const status = e.target.value as Status; void withBusy("Updating status…", () => inTransition(async () => { patch({ id: r.id, status }); await setStatus(r.id, status); })); }}>
                       {STATUSES.map((s) => <option key={s}>{s}</option>)}
                     </select>
                   </td>
@@ -148,13 +172,13 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
                     <button onClick={() => { setDerr(""); setOpen(open === r.id ? null : r.id); }} aria-expanded={open === r.id} className="text-accent underline">
                       {open === r.id ? "Close" : r.notes ? "Edit •" : "Edit"}
                     </button>
-                    <button onClick={() => confirm(`Delete ${r.company}?`) && start(() => withBusy("Deleting application…", () => removeApplication(r.id)))} className="text-rose-700 underline">Delete</button>
+                    <button onClick={() => confirm(`Delete ${r.company}?`) && void withBusy("Deleting application…", () => removeApplication(r.id))} className="text-rose-700 underline">Delete</button>
                   </td>
                 </tr>
                   {open === r.id && (
                     <tr className="border-b border-line bg-slate-50">
                       <td colSpan={7} className="p-4">
-                        <form action={(fd) => withBusy("Saving changes…", async () => { const res = await updateApplication(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); })} className="grid gap-4 sm:grid-cols-6">
+                        <form onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); void withBusy("Saving changes…", async () => { const res = await updateApplication(r.id, fd); setDerr(res.error ?? ""); if (!res.error) setOpen(null); }); }} className="grid gap-4 sm:grid-cols-6">
                           <Field label="Company" className="sm:col-span-2"><input name="company" required maxLength={200} defaultValue={r.company} className={field} /></Field>
                           <Field label="Role" className="sm:col-span-2"><input name="role" required maxLength={200} defaultValue={r.role} className={field} /></Field>
                           <Field label="Status" className="sm:col-span-2">
@@ -210,13 +234,13 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
           Want a copy first? <a href="/api/export?format=xlsx" download className="text-accent underline">Download Excel</a> or <a href="/api/export?format=csv" download className="text-accent underline">CSV</a>.
         </p>
         <form
-          action={(fd) => withBusy("Deleting your account…", async () => {
+          onSubmit={(e) => { e.preventDefault(); const fd = new FormData(e.currentTarget); void withBusy("Deleting your account…", async () => {
             setDelErr("");
             const r = await deleteAccount(fd);
             if (!r.done) { setDelErr(r.error ?? ""); return; }
             window.location.assign("/login?deleted=1");
             await new Promise<void>(() => {}); // keep the loading screen up until the page navigates
-          })}
+          }); }}
           className="mt-4 grid max-w-sm gap-3"
         >
           <input name="password" type="password" required autoComplete="current-password" placeholder="Your password" aria-label="Your password" className={field} />

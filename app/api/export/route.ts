@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs";
 import { createClient } from "@/lib/supabase/server";
+import { fetchAll } from "@/lib/fetchAll";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,24 +26,14 @@ const COLUMNS: Col[] = [
 
 type Supabase = Awaited<ReturnType<typeof createClient>>;
 
-// The API returns at most 1,000 rows per request, so read every page until the table is exhausted.
-async function fetchAll(supabase: Supabase): Promise<Row[]> {
-  const rows: Row[] = [];
-  const size = 1000;
-  for (let from = 0; from < 100_000; from += size) {
-    const { data, error } = await supabase
-      .from("applications")
-      .select(COLUMNS.map((c) => c.key).join(","))
-      .order("applied_on", { ascending: false, nullsFirst: false })
-      .order("created_at", { ascending: false })
-      .order("id")
-      .range(from, from + size - 1);
-    if (error) throw new Error(error.message);
-    const page = (data ?? []) as unknown as Row[];
-    rows.push(...page);
-    if (page.length < size) break;
-  }
-  return rows;
+async function fetchRows(supabase: Supabase): Promise<Row[]> {
+  return fetchAll<Row>((from, to) => supabase
+    .from("applications")
+    .select(COLUMNS.map((c) => c.key).join(","))
+    .order("applied_on", { ascending: false, nullsFirst: false })
+    .order("created_at", { ascending: false })
+    .order("id")
+    .range(from, to) as unknown as PromiseLike<{ data: Row[] | null; error: { message: string } | null }>);
 }
 
 const quote = (s: string) => (/[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
@@ -89,7 +80,7 @@ export async function GET(req: Request) {
   if (!user) return new Response("Unauthorized", { status: 401 });
 
   let rows: Row[];
-  try { rows = await fetchAll(supabase); } catch { return new Response("Export failed", { status: 500 }); }
+  try { rows = await fetchRows(supabase); } catch { return new Response("Export failed", { status: 500 }); }
 
   const stamp = new Date().toISOString().slice(0, 10);
   return new Response(format === "xlsx" ? await toXlsx(rows) : toCsv(rows), {
