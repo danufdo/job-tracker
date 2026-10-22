@@ -1,6 +1,7 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
+import { createClient as createJsClient } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/server";
 import { STATUSES, type NewApp, type Status } from "@/lib/types";
 
@@ -88,4 +89,23 @@ export async function signOut() {
   const supabase = await createClient();
   await supabase.auth.signOut();
   redirect("/login");
+}
+
+export async function deleteAccount(fd: FormData): Promise<{ error?: string; done?: boolean }> {
+  if (String(fd.get("confirm") ?? "").trim() !== "DELETE") return { error: "Type DELETE to confirm." };
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user?.email) return { error: "You’re not signed in." };
+
+  // Re-check the password with a throwaway client so no session cookies change.
+  const check = createJsClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const { error: pwError } = await check.auth.signInWithPassword({ email: user.email, password: String(fd.get("password") ?? "") });
+  if (pwError) return { error: "That password isn’t correct." };
+
+  const { error } = await supabase.rpc("delete_my_account");
+  if (error) return { error: `Couldn’t delete the account: ${error.message}` };
+  await supabase.auth.signOut();
+  return { done: true };
 }

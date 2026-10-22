@@ -1,6 +1,6 @@
 "use client";
 import { Fragment, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { addApplication, removeApplication, updateApplication, setStatus, signOut } from "@/app/actions";
+import { addApplication, deleteAccount, removeApplication, updateApplication, setStatus, signOut } from "@/app/actions";
 import { STATUSES, type App, type Status } from "@/lib/types";
 import ImportSheet from "./ImportSheet";
 
@@ -36,6 +36,8 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   const [derr, setDerr] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [fail, setFail] = useState("");
+  const [delText, setDelText] = useState("");
+  const [delErr, setDelErr] = useState("");
 
   // Shows the loading screen (and locks the page) while a save, edit, delete or import runs.
   async function withBusy(label: string, fn: () => Promise<void>) {
@@ -189,6 +191,26 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
           </div>
         </nav>
       )}
+    
+      <details className="mt-10 rounded border border-rose-200 bg-white p-4">
+        <summary className="cursor-pointer font-medium text-rose-800">Delete account</summary>
+        <p className="mt-3 text-sm text-slate-700">This permanently deletes your login and every application, offer and note you’ve saved. It can’t be undone.</p>
+        <form
+          action={(fd) => withBusy("Deleting your account…", async () => {
+            setDelErr("");
+            const r = await deleteAccount(fd);
+            if (!r.done) { setDelErr(r.error ?? ""); return; }
+            window.location.assign("/login?deleted=1");
+            await new Promise<void>(() => {}); // keep the loading screen up until the page navigates
+          })}
+          className="mt-4 grid max-w-sm gap-3"
+        >
+          <input name="password" type="password" required autoComplete="current-password" placeholder="Your password" aria-label="Your password" className={field} />
+          <input name="confirm" value={delText} onChange={(e) => setDelText(e.target.value)} autoComplete="off" placeholder="Type DELETE to confirm" aria-label="Type DELETE to confirm" className={field} />
+          <button disabled={delText !== "DELETE"} className="rounded bg-rose-700 px-3 py-2 font-medium text-white disabled:opacity-50">Permanently delete my account</button>
+          {delErr && <p role="alert" className="text-sm text-rose-700">{delErr}</p>}
+        </form>
+      </details>
     </main>
 
     {busy && (
