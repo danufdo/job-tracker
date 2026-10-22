@@ -1,4 +1,4 @@
-import { Document, Font, Link, Page, StyleSheet, Text, View, renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
+import { Document, Font, Image, Link, Page, StyleSheet, Text, View, renderToBuffer, type DocumentProps } from "@react-pdf/renderer";
 import type { ReactElement, ReactNode } from "react";
 import type { Resume } from "./resume";
 
@@ -7,6 +7,10 @@ Font.registerHyphenationCallback((w) => [w]); // never split words with hyphens
 // Built-in PDF fonts (Times) need no font files and give a classic LaTeX-like look.
 const st = StyleSheet.create({
   page: { paddingTop: 34, paddingBottom: 34, paddingHorizontal: 42, fontFamily: "Times-Roman", fontSize: 10.5, lineHeight: 1.25, color: "#111111" },
+  head: { flexDirection: "row", alignItems: "center" },
+  headText: { flex: 1 },
+  headSpace: { width: 84 }, // = photo width + its left margin, so the text stays centred on the page
+  photo: { width: 74, height: 74, marginLeft: 10, objectFit: "cover", borderRadius: 3 },
   name: { fontFamily: "Times-Bold", fontSize: 22, textAlign: "center", letterSpacing: 1 },
   title: { fontSize: 12, textAlign: "center", marginTop: 2 },
   contact: { fontSize: 10, textAlign: "center", marginTop: 4 },
@@ -39,16 +43,22 @@ function joined(parts: ReactNode[], sep = "  |  "): ReactNode[] {
   return parts.flatMap((p, i) => (i === 0 ? [p] : [sep, p]));
 }
 
-function ResumeDoc({ d }: { d: Resume }) {
+function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
   const line1: ReactNode[] = [d.phone, <Link key="e" src={mailto(d.email)} style={st.link}>{d.email}</Link>, ...(d.location ? [d.location] : [])];
   const line2: ReactNode[] = d.links.map((l, i) => <Link key={i} src={l.url} style={st.link}>{l.label || l.url.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</Link>);
   return (
     <Document title={`${d.name} – CV`} author={d.name}>
       <Page size="A4" style={st.page}>
-        <Text style={st.name}>{d.name.toUpperCase()}</Text>
-        <Text style={st.title}>{d.title}</Text>
-        <Text style={st.contact}>{joined(line1)}</Text>
-        <Text style={st.contact}>{joined(line2)}</Text>
+        <View style={st.head}>
+          {photo ? <View style={st.headSpace} /> : null}
+          <View style={st.headText}>
+            <Text style={photo && d.name.length > 21 ? [st.name, { fontSize: 18 }] : st.name}>{d.name.toUpperCase()}</Text>
+            <Text style={st.title}>{d.title}</Text>
+            <Text style={st.contact}>{joined(line1)}</Text>
+            <Text style={st.contact}>{joined(line2)}</Text>
+          </View>
+          {photo ? <Image src={{ data: photo, format: "jpg" }} style={st.photo} /> : null}
+        </View>
 
         <Section title="Professional Summary"><Text>{d.summary}</Text></Section>
 
@@ -126,6 +136,6 @@ function ResumeDoc({ d }: { d: Resume }) {
   );
 }
 
-export async function renderResumePdf(data: Resume): Promise<Buffer> {
-  return renderToBuffer(ResumeDoc({ d: data }) as ReactElement<DocumentProps>);
+export async function renderResumePdf(data: Resume, photo?: Buffer): Promise<Buffer> {
+  return renderToBuffer(ResumeDoc({ d: data, photo }) as ReactElement<DocumentProps>);
 }

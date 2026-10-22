@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { generateResume, saveResumeDraft } from "@/app/(app)/resume/actions";
 import { blank, type Resume } from "@/lib/resume";
 import { useBusy } from "./Busy";
+import PhotoField from "./PhotoField";
 
 const field = "w-full min-w-0 rounded border border-line bg-white px-3 py-2";
 const btn = "inline-flex items-center gap-2 rounded bg-ink px-3 py-2 text-sm font-medium text-white hover:bg-slate-700";
@@ -41,7 +42,7 @@ function Group<T>({ items, onChange, make, min = 0, addLabel, render }: {
   );
 }
 
-export default function ResumeBuilder({ initial, hasFile, generatedAt }: { initial: Resume; hasFile: boolean; generatedAt: string | null }) {
+export default function ResumeBuilder({ initial, hasFile, hasPhoto, generatedAt }: { initial: Resume; hasFile: boolean; hasPhoto: boolean; generatedAt: string | null }) {
   const { withBusy, fail } = useBusy();
   const [d, setD] = useState<Resume>(initial);
   const [file, setFile] = useState(hasFile);
@@ -87,6 +88,7 @@ export default function ResumeBuilder({ initial, hasFile, generatedAt }: { initi
 
       <form onSubmit={generate}>
         <Section title="Basic details">
+          <PhotoField hasPhoto={hasPhoto} />
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-6">
             <Field label="Full name" className="sm:col-span-3"><input required maxLength={100} className={field} {...text("name")} /></Field>
             <Field label="Professional title" className="sm:col-span-3"><input required maxLength={120} placeholder="e.g. Software Engineer" className={field} {...text("title")} /></Field>
