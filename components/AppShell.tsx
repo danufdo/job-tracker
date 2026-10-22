@@ -1,6 +1,6 @@
 "use client";
 import { useEffect } from "react";
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
 import { signOut } from "@/app/actions";
 import { BusyProvider, useBusy } from "./Busy";
@@ -9,6 +9,18 @@ const NAV = [
   { href: "/", label: "Applications" },
   { href: "/resume", label: "Resume Builder" },
 ];
+
+// Must render inside <Link>: useLinkStatus reports whether *that* link's navigation is still in flight.
+// Always in the layout (just transparent) so the item never changes width. The short delay stops it flashing on fast navigations.
+function NavPending() {
+  const { pending } = useLinkStatus();
+  return (
+    <>
+      <span aria-hidden className={`size-3.5 shrink-0 animate-spin rounded-full border-2 border-current border-t-transparent motion-reduce:animate-none ${pending ? "opacity-100 transition-opacity delay-150 duration-150" : "opacity-0"}`} />
+      <span role="status" className="sr-only">{pending ? "Loading" : ""}</span>
+    </>
+  );
+}
 
 function Shell({ email, children }: { email: string; children: React.ReactNode }) {
   const path = usePathname();
@@ -23,8 +35,8 @@ function Shell({ email, children }: { email: string; children: React.ReactNode }
             const active = n.href === "/" ? path === "/" : path.startsWith(n.href);
             return (
               <Link key={n.href} href={n.href} aria-current={active ? "page" : undefined}
-                className={`whitespace-nowrap rounded px-3 py-2 text-sm font-medium ${active ? "bg-ink text-white" : "text-slate-700 hover:bg-slate-100"}`}>
-                {n.label}
+                className={`flex items-center justify-between gap-2 whitespace-nowrap rounded px-3 py-2 text-sm font-medium ${active ? "bg-ink text-white" : "text-slate-700 hover:bg-slate-100"}`}>
+                {n.label}<NavPending />
               </Link>
             );
           })}
