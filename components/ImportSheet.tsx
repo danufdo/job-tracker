@@ -1,5 +1,5 @@
 "use client";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import Papa from "papaparse";
 import { importApplications } from "@/app/actions";
 import type { NewApp } from "@/lib/types";
@@ -83,11 +83,26 @@ async function readSheets(file: File): Promise<unknown[][][]> {
   return Promise.all(names.map((sheet) => readXlsx(file, { sheet })));
 }
 
-export default function ImportSheet({ run }: { run: (label: string, fn: () => Promise<void>) => Promise<void> }) {
+// Splits rows into requests of at most 500 rows and ~600 KB, safely under the 1 MB server-action body limit.
+function chunkRows(rows: NewApp[], maxRows = 500, maxBytes = 600_000) {
+  const enc = new TextEncoder();
+  const chunks: NewApp[][] = [];
+  let cur: NewApp[] = [], size = 0;
+  for (const r of rows) {
+    const n = enc.encode(JSON.stringify(r)).length;
+    if (cur.length && (cur.length >= maxRows || size + n > maxBytes)) { chunks.push(cur); cur = []; size = 0; }
+    cur.push(r); size += n;
+  }
+  if (cur.length) chunks.push(cur);
+  return chunks;
+}
+const fmtN = (n: number) => n.toLocaleString("en-US");
+
+export default function ImportSheet({ run }: { run: (label: string, fn: (setLabel: (l: string) => void) => Promise<void>) => Promise<void> }) {
   const input = useRef<HTMLInputElement>(null);
   const [rows, setRows] = useState<NewApp[]>([]);
   const [msg, setMsg] = useState("");
-  const [pending, start] = useTransition();
+  const [importing, setImporting] = useState(false);
 
   async function onFile(file?: File) {
     if (input.current) input.current.value = ""; // lets the same file be chosen again
@@ -104,12 +119,31 @@ export default function ImportSheet({ run }: { run: (label: string, fn: () => Pr
     });
   }
 
-  function confirmImport() {
-    start(() => run("Importing applications…", async () => {
-      const r = await importApplications(rows);
-      setMsg(r.error ? `Import stopped: ${r.error}` : `Imported ${r.added}. Skipped ${r.skipped} duplicates.`);
+  async function confirmImport() {
+    if (importing) return;
+    setImporting(true);
+    await run("Importing applications…", async (setLabel) => {
+      const total = rows.length;
+      let added = 0, skipped = 0, done = 0;
+      try {
+        for (const chunk of chunkRows(rows)) {
+          setLabel(`Importing ${fmtN(done)} of ${fmtN(total)} rows…`);
+          const r = await importApplications(chunk);
+          added += r.added; skipped += r.skipped;
+          if (r.error) {
+            setMsg(`Import stopped: ${r.error}. ${fmtN(added)} added so far. Re-import the same file to add the rest (duplicates are skipped).`);
+            setRows([]);
+            return;
+          }
+          done += chunk.length;
+        }
+        setMsg(`Imported ${fmtN(added)}. Skipped ${fmtN(skipped)} duplicates.`);
+      } catch {
+        setMsg(`Import interrupted after ${fmtN(added)} added. Re-import the same file to continue (duplicates are skipped).`);
+      }
       setRows([]);
-    }));
+    });
+    setImporting(false);
   }
 
   return (
@@ -117,8 +151,8 @@ export default function ImportSheet({ run }: { run: (label: string, fn: () => Pr
       <input ref={input} type="file" accept=".csv,.xlsx" onChange={(e) => onFile(e.target.files?.[0])} className="hidden" id="sheet" />
       <label htmlFor="sheet" className="cursor-pointer rounded border border-ink px-3 py-2 text-sm font-medium hover:bg-white">Import from Google Sheets (.csv / .xlsx)</label>
       {rows.length > 0 && (
-        <button onClick={confirmImport} disabled={pending} className="rounded bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
-          {pending ? "Importing…" : `Import ${rows.length} rows`}
+        <button onClick={confirmImport} disabled={importing} className="rounded bg-accent px-3 py-2 text-sm font-medium text-white disabled:opacity-60">
+          {importing ? "Importing…" : `Import ${rows.length} rows`}
         </button>
       )}
       {msg && <span role="status" className="text-sm text-slate-700">{msg}</span>}

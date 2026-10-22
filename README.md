@@ -21,4 +21,6 @@ The Export Excel / Export CSV buttons download every application (not just the c
 
 ## Importing from Google Sheets
 In Sheets: File → Download → CSV or Microsoft Excel. Use a header row with Company and Role
-(optional: Status, Location, URL, Source, Applied, Notes). Duplicate company + role pairs are skipped.
+(optional: Status, Location, URL, Source, Applied, Notes, Offer Min, Offer Max, Currency, Package). Duplicate company + role pairs are skipped.
+Large files are sent in batches of up to 500 rows, with progress shown, so there is no practical row limit. If an import is
+interrupted, re-import the same file: rows already saved are skipped.

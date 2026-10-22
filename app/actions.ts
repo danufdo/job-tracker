@@ -65,10 +65,24 @@ export async function removeApplication(id: string) {
   revalidatePath("/");
 }
 
+// PostgREST returns at most 1,000 rows per request, so read the existing pairs page by page.
+async function existingKeys(supabase: Awaited<ReturnType<typeof createClient>>) {
+  const seen = new Set<string>();
+  for (let from = 0; ; from += 1000) {
+    const { data, error } = await supabase.from("applications").select("company, role").order("id").range(from, from + 999);
+    if (error) throw new Error(error.message);
+    (data ?? []).forEach((r) => seen.add(`${r.company}|${r.role}`.toLowerCase()));
+    if ((data?.length ?? 0) < 1000) break;
+  }
+  return seen;
+}
+
 export async function importApplications(rows: NewApp[]): Promise<{ added: number; skipped: number; error?: string }> {
   const supabase = await createClient();
-  const { data: existing } = await supabase.from("applications").select("company, role");
-  const seen = new Set((existing ?? []).map((r) => `${r.company}|${r.role}`.toLowerCase()));
+  if (rows.length > 1000) return { added: 0, skipped: rows.length, error: "Too many rows in one request." };
+  let seen: Set<string>;
+  try { seen = await existingKeys(supabase); }
+  catch (e) { return { added: 0, skipped: rows.length, error: e instanceof Error ? e.message : "Couldn’t read your existing applications." }; }
   const fresh = rows.flatMap((r) => {
     const company = clean(r.company), role = clean(r.role);
     if (!company || !role) return [];
