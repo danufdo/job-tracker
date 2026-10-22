@@ -1,8 +1,9 @@
 "use client";
-import { Fragment, startTransition, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
-import { addApplication, deleteAccount, removeApplication, updateApplication, setStatus, signOut } from "@/app/actions";
+import { Fragment, useEffect, useMemo, useOptimistic, useRef, useState, useTransition } from "react";
+import { addApplication, deleteAccount, removeApplication, updateApplication, setStatus } from "@/app/actions";
 import { STATUSES, type App, type Status } from "@/lib/types";
 import ImportSheet from "./ImportSheet";
+import { useBusy } from "./Busy";
 
 const PILL: Record<Status, string> = {
   saved: "bg-slate-200 text-slate-800", applied: "bg-sky-100 text-sky-900", interview: "bg-amber-100 text-amber-900",
@@ -36,7 +37,7 @@ function Field({ label, className = "", children }: { label: string; className?:
   return <label className={`grid gap-1 text-sm text-slate-700 ${className}`}><span>{label}</span>{children}</label>;
 }
 
-export default function Tracker({ initial, email }: { initial: App[]; email: string }) {
+export default function Tracker({ initial }: { initial: App[] }) {
   const [rows, patch] = useOptimistic(initial, (s, a: { id: string; status: Status }) =>
     s.map((r) => (r.id === a.id ? { ...r, status: a.status } : r)));
   const [, start] = useTransition();
@@ -52,18 +53,10 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
   useEffect(() => { setAppliedOn(localToday()); }, []);
   const [open, setOpen] = useState<string | null>(null);
   const [derr, setDerr] = useState("");
-  const [busy, setBusy] = useState<string | null>(null);
-  const [fail, setFail] = useState("");
+  const { withBusy, fail } = useBusy();
   const [delText, setDelText] = useState("");
   const [delErr, setDelErr] = useState("");
 
-  // Shows the loading screen (and locks the page) while a save, edit, delete or import runs.
-  // Call this straight from an event handler (never inside a form `action` or a transition): React defers
-  // state updates made inside those until the server call finishes, so the overlay would appear too late.
-  async function withBusy(label: string, fn: (setLabel: (l: string) => void) => Promise<void>) {
-    setFail(""); setBusy(label);
-    try { await fn(setBusy); } catch { setFail("Something went wrong. Please try again."); } finally { startTransition(() => setBusy(null)); }
-  }
   // Runs fn as a transition and resolves when it ends, which useOptimistic needs to keep its optimistic value.
   const inTransition = (fn: () => Promise<void>) =>
     new Promise<void>((resolve, reject) => start(async () => { try { await fn(); resolve(); } catch (e) { reject(e); } }));
@@ -87,13 +80,9 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
 
   return (
     <>
-    <main inert={busy !== null} className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
+    <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
       <header className="mb-6 flex items-end justify-between gap-4">
-        <h1 className="font-display text-3xl font-bold tracking-tight">Job Tracker</h1>
-        <form onSubmit={(e) => { e.preventDefault(); setBusy("Signing out…"); void signOut(); }} className="flex items-center gap-3 text-sm text-slate-600">
-          <span className="hidden sm:inline">{email}</span>
-          <button className="underline">Sign out</button>
-        </form>
+        <h1 className="font-display text-3xl font-bold tracking-tight">Applications</h1>
       </header>
 
       {fail && <p role="alert" className="mb-4 rounded border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">{fail}</p>}
@@ -251,14 +240,6 @@ export default function Tracker({ initial, email }: { initial: App[]; email: str
       </details>
     </main>
 
-    {busy && (
-      <div role="status" aria-live="assertive" className="fixed inset-0 z-50 grid place-items-center bg-ink/50">
-        <div className="flex items-center gap-3 rounded bg-white px-5 py-4 shadow-lg">
-          <span aria-hidden className="size-5 animate-spin rounded-full border-2 border-line border-t-accent" />
-          <span className="font-medium">{busy}</span>
-        </div>
-      </div>
-    )}
     </>
   );
 }

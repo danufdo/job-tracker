@@ -4,7 +4,7 @@ Next.js (App Router, TypeScript, Tailwind) + Supabase (Postgres, Auth, RLS). Fre
 
 ## Setup
 1. Create a free project at supabase.com. In the SQL editor, run `supabase/schema.sql`.
-   (Existing project? Run `supabase/add-offer-fields.sql` and `supabase/add-delete-account.sql` once instead.)
+   (Existing project? Run `supabase/add-offer-fields.sql`, `supabase/add-delete-account.sql` and `supabase/add-resumes.sql` once instead.)
 2. In Authentication → Providers → Email, turn off "Confirm email" while testing.
 3. `cp .env.example .env.local` and fill in the project URL and anon key (Project Settings → API).
 4. `npm install && npm run dev`, then open http://localhost:3000.
@@ -24,3 +24,10 @@ In Sheets: File → Download → CSV or Microsoft Excel. Use a header row with C
 (optional: Status, Location, URL, Source, Applied, Notes, Offer Min, Offer Max, Currency, Package). Duplicate company + role pairs are skipped.
 Large files are sent in batches of up to 500 rows, with progress shown, so there is no practical row limit. If an import is
 interrupted, re-import the same file: rows already saved are skipped.
+
+## Resume Builder
+The left-hand menu has a Resume Builder page. Users fill in their details, save a draft, and generate a PDF CV.
+The form data lives in the `resumes` table (one row per user) and the PDF in a private Supabase Storage bucket at
+`resumes/{user_id}/cv.pdf` (overwritten on each generation). Downloads go through `/api/resume`, which redirects to a
+signed URL that expires after 60 seconds. The PDF is built in Node with `@react-pdf/renderer` (no TeX needed) using the
+built-in Times fonts, so only Latin characters are supported for now. Deleting an account also deletes the stored PDF.
