@@ -86,7 +86,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
           ))}
         </Section>
 
-        <Section title="Technical Skills">
+        <Section title="Technical skills">
           {d.skills.map((k, i) => (
             <Text key={i} style={{ marginBottom: 2 }}><Text style={st.bold}>{k.category}: </Text>{k.items}</Text>
           ))}
