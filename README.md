@@ -4,7 +4,7 @@ Next.js (App Router, TypeScript, Tailwind) + Supabase (Postgres, Auth, RLS). Fre
 
 ## Setup
 1. Create a free project at supabase.com. In the SQL editor, run `supabase/schema.sql`.
-   (Existing project? Run `supabase/add-offer-fields.sql`, `supabase/add-delete-account.sql` and `supabase/add-resumes.sql` once instead.)
+   (Existing project? Run `supabase/add-offer-fields.sql`, `supabase/add-delete-account.sql` and `supabase/add-resumes.sql` and `supabase/add-resume-photo.sql` once instead.)
 2. In Authentication → Providers → Email, turn off "Confirm email" while testing.
 3. `cp .env.example .env.local` and fill in the project URL and anon key (Project Settings → API).
 4. `npm install && npm run dev`, then open http://localhost:3000.
@@ -31,3 +31,8 @@ The form data lives in the `resumes` table (one row per user) and the PDF in a p
 `resumes/{user_id}/cv.pdf` (overwritten on each generation). Downloads go through `/api/resume`, which redirects to a
 signed URL that expires after 60 seconds. The PDF is built in Node with `@react-pdf/renderer` (no TeX needed) using the
 built-in Times fonts, so only Latin characters are supported for now. Deleting an account also deletes the stored PDF.
+
+### CV photo
+Optional. The browser crops the chosen JPG/PNG/WebP (max 10 MB) to a 480x480 JPEG, which also strips EXIF/GPS data, then the
+server re-checks it (JPEG, at most 400 KB) and stores it in the private `resume-photos` bucket at `{user_id}/photo.jpg`.
+It appears at the top right of the PDF header when you generate the CV. Deleting an account removes the photo too.
