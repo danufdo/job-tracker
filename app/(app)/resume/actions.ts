@@ -33,8 +33,13 @@ export async function generateResume(raw: unknown): Promise<{ error?: string; ge
   }
 
   let pdf: Buffer;
-  try { pdf = await renderResumePdf(res.data, photo); }
-  catch { return { error: "Couldn’t build the PDF. Check for very long unbroken text and try again." }; }
+  try {
+    pdf = await renderResumePdf(res.data, photo);
+  } catch (error) {
+    // Keep the detailed exception in server logs for diagnosis; don't expose internals to users.
+    console.error("Resume PDF rendering failed", error);
+    return { error: "We couldn’t generate your PDF. Please check unusually long URLs or text and try again. If the problem continues, try without your photo or contact support." };
+  }
 
   // One file per user: each regeneration overwrites {user_id}/cv.pdf.
   const path = `${user.id}/cv.pdf`;

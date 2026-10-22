@@ -2,8 +2,6 @@ import { Document, Font, Image, Link, Page, StyleSheet, Text, View, renderToBuff
 import type { ReactElement, ReactNode } from "react";
 import type { Resume } from "./resume";
 
-Font.registerHyphenationCallback((w) => [w]); // never split words with hyphens
-
 // Built-in PDF fonts (Times) need no font files and give a classic LaTeX-like look.
 const st = StyleSheet.create({
   page: { paddingTop: 34, paddingBottom: 34, paddingHorizontal: 42, fontFamily: "Times-Roman", fontSize: 10.5, lineHeight: 1.25, color: "#111111" },
@@ -65,12 +63,12 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
         <Section title="Experience">
           {d.experience.map((j, i) => (
             <View key={i} style={st.entry}>
-              <View wrap={false}>
+              <View>
                 <View style={st.row}><Text style={st.bold}>{j.role}</Text><Text>{range(j.start, j.end)}</Text></View>
                 <View style={st.row}><Text style={st.ital}>{j.company}</Text><Text style={st.ital}>{j.location}</Text></View>
               </View>
               {j.bullets.map((b, k) => (
-                <View key={k} style={st.li} wrap={false}><Text style={st.dot}>•</Text><Text style={st.liText}>{b}</Text></View>
+                <View key={k} style={st.li}><Text style={st.dot}>•</Text><Text style={st.liText}>{b}</Text></View>
               ))}
             </View>
           ))}
@@ -78,7 +76,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
 
         <Section title="Education">
           {d.education.map((e, i) => (
-            <View key={i} style={st.entry} wrap={false}>
+            <View key={i} style={st.entry}>
               <View style={st.row}><Text style={st.bold}>{e.degree}</Text><Text>{range(e.start, e.end)}</Text></View>
               <View style={st.row}><Text style={st.ital}>{e.school}</Text><Text style={st.ital}>{e.location}</Text></View>
               {e.details ? <Text style={{ marginTop: 1.5 }}>{e.details}</Text> : null}
@@ -86,7 +84,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
           ))}
         </Section>
 
-        <Section title="Technical skills">
+        <Section title="Technical Skills">
           {d.skills.map((k, i) => (
             <Text key={i} style={{ marginBottom: 2 }}><Text style={st.bold}>{k.category}: </Text>{k.items}</Text>
           ))}
@@ -95,7 +93,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
         {d.projects.length > 0 && (
           <Section title="Projects">
             {d.projects.map((p, i) => (
-              <View key={i} style={st.entry} wrap={false}>
+              <View key={i} style={st.entry}>
                 <View style={st.row}>
                   <Text style={st.bold}>{p.name}</Text>
                   {p.url ? <Link src={p.url} style={st.link}>{p.url.replace(/^https?:\/\//i, "").replace(/\/$/, "")}</Link> : <Text />}
@@ -110,7 +108,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
         {d.certifications.length > 0 && (
           <Section title="Certifications">
             {d.certifications.map((c, i) => (
-              <View key={i} style={st.row} wrap={false}>
+              <View key={i} style={st.row}>
                 <Text><Text style={st.bold}>{c.name}</Text>{c.issuer ? `, ${c.issuer}` : ""}</Text>
                 <Text>{c.year}</Text>
               </View>
@@ -122,7 +120,7 @@ function ResumeDoc({ d, photo }: { d: Resume; photo?: Buffer }) {
           <Section title="References">
             <View style={st.refs}>
               {d.references.map((r, i) => (
-                <View key={i} style={st.ref} wrap={false}>
+                <View key={i} style={st.ref}>
                   <Text style={st.bold}>{r.name}</Text>
                   {r.title ? <Text>{r.title}</Text> : null}
                   {r.contact ? <Text>{r.contact}</Text> : null}
