@@ -123,6 +123,10 @@ export async function deleteAccount(fd: FormData): Promise<{ error?: string; don
   const { error: pwError } = await check.auth.signInWithPassword({ email: user.email, password: String(fd.get("password") ?? "") });
   if (pwError) return { error: "That password isn’t correct." };
 
+  // The SQL function can't reach Storage (deleting storage.objects rows in SQL would orphan the file), so remove the CV first.
+  const { error: fileError } = await supabase.storage.from("resumes").remove([`${user.id}/cv.pdf`]);
+  if (fileError) return { error: `Couldn’t delete your stored CV: ${fileError.message}` };
+
   const { error } = await supabase.rpc("delete_my_account");
   if (error) return { error: `Couldn’t delete the account: ${error.message}` };
   await supabase.auth.signOut();
