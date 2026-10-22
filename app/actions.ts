@@ -23,6 +23,7 @@ export async function addApplication(fd: FormData): Promise<{ error?: string }> 
   return {};
 }
 
+const nonNeg = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
 const num = (v: unknown) => {
   const s = String(v ?? "").trim();
   if (!s) return null;
@@ -74,8 +75,12 @@ export async function importApplications(rows: NewApp[]): Promise<{ added: numbe
     const key = `${company}|${role}`.toLowerCase();
     if (seen.has(key)) return [];
     seen.add(key);
+    let min = nonNeg(r.offer_min), max = nonNeg(r.offer_max);
+    if (min !== null && max !== null && min > max) [min, max] = [max, min];
     return [{ company, role, status: validStatus(r.status), location: clean(r.location), url: validUrl(r.url),
-      source: clean(r.source), applied_on: validDate(r.applied_on), notes: clean(r.notes) }];
+      source: clean(r.source), applied_on: validDate(r.applied_on), notes: clean(r.notes)?.slice(0, 5000) ?? null,
+      offer_min: min, offer_max: max, offer_currency: clean(r.offer_currency)?.toUpperCase().slice(0, 8) ?? null,
+      offer_details: clean(r.offer_details)?.slice(0, 1000) ?? null }];
   });
   for (let i = 0; i < fresh.length; i += 500) {
     const { error } = await supabase.from("applications").insert(fresh.slice(i, i + 500));
