@@ -10,7 +10,7 @@ const st = StyleSheet.create({
   headSpace: { width: 84 }, // = photo width + its left margin, so the text stays centred on the page
   photo: { width: 74, height: 74, marginLeft: 10, objectFit: "cover", borderRadius: 3 },
   name: { fontFamily: "Times-Bold", fontSize: 22, textAlign: "center", letterSpacing: 1 },
-  title: { fontSize: 12, textAlign: "center", marginTop: 2 },
+  title: { fontSize: 12, textAlign: "center", marginTop: 10 },
   contact: { fontSize: 10, textAlign: "center", marginTop: 4 },
   h: { fontFamily: "Times-Bold", fontSize: 11.5, letterSpacing: 1, marginTop: 12, marginBottom: 5, paddingBottom: 2, borderBottomWidth: 0.7, borderBottomColor: "#111111" },
   row: { flexDirection: "row", justifyContent: "space-between" },
